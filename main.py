@@ -1,4 +1,3 @@
-from cProfile import label
 import math
 import random
 from random import randint, random as random_2
@@ -24,6 +23,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.poblacion_min = 4
         self.lista_individuos = []
         self.num_div = 0
+        self.minimo = []
+        self.maximo = []
+        self.promedio = []
 
         # botones calorias
         self.calorias_hombre_calcular.clicked.connect(
@@ -47,14 +49,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for i in lista:
             suma_calorias = 0
             suma_volumen = 0
+            suma_peso = 0
             contador = 0
             for y in i.lista_alimentos:
                 suma_calorias += y.calorias
                 suma_volumen += y.volumen
+                suma_peso += y.peso
                 if suma_volumen < self.mochila.volumen and suma_calorias < self.persona.calorias:
                     i.cantidad_calorias = suma_calorias
                     i.volumen = suma_volumen
                     i.posicion_valido = contador
+                    i.peso = suma_peso
                 contador += 1
         return lista
 
@@ -147,25 +152,59 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def obtener_validos(self, lista):
         for i in lista:
             i.lista_validos = i.lista_alimentos[:i.posicion_valido]
+            i.lista_validos = sorted(
+                i.lista_validos, key=lambda genoma: genoma.nombre)
+
         return lista
 
+    def buscar_promedio(self, poblacion):
+        suma = 0
+        for i in range(len(poblacion)):
+            suma += poblacion[i].cantidad_calorias
+        self.promedio.append(suma/len(poblacion))
+
+    def get_minimo(self, poblacion):
+        self.minimo.append(poblacion[0].cantidad_calorias)
+
+    def get_maximo(self, poblacion):
+        self.maximo.append(poblacion[len(poblacion)-1].cantidad_calorias)
+
     def imprimir_tabla(self):
-        data_tabla = []
-        lista = []
-        for i in self.lista_individuos:
-            for y in i.lista_validos:
-                lista.append(y.nombre)
-            lista = sorted(lista)
-            i.lista_validos = lista
-            print("Lista validos: ", i.lista_validos)
-            lista = []
+
         for i in range(3):
-            data_tabla.append([self.lista_individuos[i].lista_validos, str(
-                self.lista_individuos[i].cantidad_calorias), str(self.lista_individuos[i].volumen)])
-        column_labels = ["Lista de alimentos", "Calorias", "Volumen"]
-        plt.axis('tight')
-        plt.axis('off')
-        plt.table(cellText=data_tabla, colLabels=column_labels,loc="center" ,colColours=["yellow"] * 3).auto_set_font_size(False)
+            plt.figure(num=i)
+            plt.subplots_adjust(top=0.921, bottom=0.031,
+                                left=0.023, right=0.977, hspace=0.2, wspace=0.2)
+            data_tabla = []
+            for y in self.lista_individuos[i].lista_validos:
+                data_tabla.append([y.nombre, y.calorias, y.volumen, y.peso])
+            data_tabla.append(["Total", self.lista_individuos[i].cantidad_calorias,
+                              self.lista_individuos[i].volumen, self.lista_individuos[i].peso])
+            # plt.subplot(1, 3, i+1)
+            column_labels = ["Nombre producto", "Calorias", "Volumen", "Peso"]
+            plt.title("Opción: " + str(i+1))
+            plt.axis('tight')
+            plt.axis('off')
+            plt.table(cellText=data_tabla, colLabels=column_labels,
+                      loc='center', colColours=["yellow"] * 4)
+            plt.show()
+
+    def imprimir_historico(self):
+        plt.figure(num=10)
+        x = []
+
+        for i in range(len(self.promedio)):
+            x.append(i)
+        print("Promedio: ", self.promedio)
+        print("Minimo: ", self.minimo)
+        print("Maximo: ", self.maximo)
+        plt.plot(x, self.promedio, label="Promedio")
+        plt.plot(x, self.minimo, label="Minimo")
+        plt.plot(x, self.maximo, label="Maximo")
+        plt.title("Historico")
+        plt.xlabel("Generaciones")
+        plt.ylabel("Calorias")
+        plt.legend(loc='upper right')
         plt.show()
 
     def algoritmo_genetico(self):
@@ -174,6 +213,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.lista_individuos)
         self.lista_individuos = sorted(
             self.lista_individuos, key=lambda genoma: genoma.cantidad_calorias, reverse=True)
+        self.get_minimo(self.lista_individuos.copy())
+        self.get_maximo(self.lista_individuos.copy())
+        self.buscar_promedio(self.lista_individuos.copy())
         self.cal_div()
         for i in range(20):
             print("Generacion : ", i)
@@ -187,6 +229,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.lista_individuos, key=lambda genoma: genoma.cantidad_calorias, reverse=True)
             print("Lista de poblacion antes de poda:")
             print(self.lista_individuos)
+            aux = self.lista_individuos.copy()
+            self.get_minimo(self.lista_individuos.copy())
+            self.get_maximo(self.lista_individuos.copy())
+            self.buscar_promedio(self.lista_individuos.copy())
             self.lista_individuos = self.lista_individuos[:self.poblacion_max]
             print("Lista de poblacion despues de poda:")
             print(self.lista_individuos)
@@ -194,8 +240,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.obtener_validos(self.lista_individuos)
         print("Lista de validos: ", self.lista_individuos)
         self.imprimir_tabla()
+        self.imprimir_historico()
 
     def buscar_opciones(self):
+        self.lista_individuos = []
         print("Buscando opciones")
         self.obtener_mochila()
         self.algoritmo_genetico()
